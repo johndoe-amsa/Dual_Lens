@@ -1,0 +1,328 @@
+/* ========================================
+   Dual Lens — Styles
+   Vercel-minimalist design (CLAUDE.md)
+   ======================================== */
+
+/* --- Theme Custom Properties --- */
+:root[data-theme="light"] {
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #FAFAFA;
+  --text-primary: #000000;
+  --text-secondary: #666666;
+  --border-subtle: #EAEAEA;
+  --border-strong: #000000;
+  --color-success: #0070F3;
+  --color-error: #EE0000;
+  --color-warning: #F5A623;
+  --elevation-bg: rgba(255, 255, 255, 0.8);
+  --checkerboard-a: #E0E0E0;
+  --checkerboard-b: #FFFFFF;
+}
+
+:root[data-theme="dark"] {
+  --bg-primary: #000000;
+  --bg-secondary: #0A0A0A;
+  --text-primary: #EDEDED;
+  --text-secondary: #888888;
+  --border-subtle: #333333;
+  --border-strong: #FFFFFF;
+  --color-success: #0070F3;
+  --color-error: #EE0000;
+  --color-warning: #F5A623;
+  --elevation-bg: rgba(0, 0, 0, 0.8);
+  --checkerboard-a: #1A1A1A;
+  --checkerboard-b: #0A0A0A;
+}
+
+/* --- Reset & Base --- */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- Toolbar --- */
+#toolbar {
+  height: 56px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  gap: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--elevation-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 10;
+}
+
+.app-title {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- Buttons --- */
+.btn {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
+  outline: none;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:disabled:hover {
+  opacity: 0.5;
+}
+
+.btn:disabled:active {
+  transform: none;
+}
+
+.btn-primary {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  border: 1px solid var(--text-primary);
+}
+
+.btn-primary:hover {
+  opacity: 0.85;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-secondary);
+}
+
+.btn-secondary[aria-pressed="true"] {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  border-color: var(--text-primary);
+}
+
+.btn-secondary[aria-pressed="true"]:hover {
+  opacity: 0.85;
+}
+
+/* --- Label Mono --- */
+.label-mono {
+  font-family: 'Geist Mono', Menlo, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* --- Viewport --- */
+#viewport {
+  flex: 1;
+  display: flex;
+  gap: 1px;
+  background: var(--border-subtle);
+  position: relative;
+  overflow: hidden;
+}
+
+.pane {
+  flex: 1;
+  position: relative;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.pane canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* --- Drop Zone --- */
+.drop-zone {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed var(--border-subtle);
+  margin: 24px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  z-index: 2;
+}
+
+.drop-zone:hover,
+.drop-zone.drag-over {
+  border-color: var(--text-primary);
+  background: rgba(128, 128, 128, 0.05);
+}
+
+.drop-zone.hidden {
+  display: none;
+}
+
+.drop-label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.drop-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* --- Overlay Pane --- */
+#pane-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+
+#pane-overlay[hidden] {
+  display: none;
+}
+
+/* --- Split Divider --- */
+#split-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text-primary);
+  cursor: col-resize;
+  z-index: 5;
+  transform: translateX(-50%);
+}
+
+#split-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: 2px solid var(--bg-primary);
+  pointer-events: none;
+}
+
+#split-handle::before,
+#split-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--bg-primary);
+  transform: translateY(-50%);
+}
+
+#split-handle::before {
+  left: 4px;
+}
+
+#split-handle::after {
+  right: 4px;
+}
+
+/* --- Status Bar --- */
+#status-bar {
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--elevation-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 10;
+}
+
+/* --- Toast --- */
+#toast {
+  position: fixed;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Geist Mono', Menlo, monospace;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--elevation-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+#toast[hidden] {
+  display: none;
+}
+
+#toast.visible {
+  opacity: 1;
+}
