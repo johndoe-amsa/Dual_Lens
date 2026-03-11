@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,23 +14,41 @@
   <header id="toolbar">
     <h1 class="app-title">Dual Lens</h1>
 
-    <div class="toolbar-group">
-      <button id="btn-normal" class="btn btn-primary" aria-pressed="true">Normal</button>
-      <button id="btn-split" class="btn btn-secondary" aria-pressed="false">Split</button>
+    <div class="toolbar-separator"></div>
+
+    <div class="toolbar-section">
+      <span class="toolbar-section-label">View</span>
+      <div class="toolbar-group">
+        <button id="btn-normal" class="btn btn-primary" aria-pressed="true">Normal</button>
+        <button id="btn-split" class="btn btn-secondary" aria-pressed="false">Split</button>
+      </div>
     </div>
 
-    <div class="toolbar-group">
-      <button id="btn-sync" class="btn btn-secondary" aria-pressed="false">Sync</button>
-      <button id="btn-diff" class="btn btn-secondary" aria-pressed="false">Diff</button>
+    <div class="toolbar-separator"></div>
+
+    <div class="toolbar-section">
+      <span class="toolbar-section-label">Tools</span>
+      <div class="toolbar-group">
+        <button id="btn-sync" class="btn btn-secondary" aria-pressed="false">Sync</button>
+        <button id="btn-diff" class="btn btn-secondary" aria-pressed="false">Diff</button>
+      </div>
     </div>
 
-    <div class="toolbar-group">
-      <button id="btn-zoom-out" class="btn btn-secondary" aria-label="Zoom out">&minus;</button>
-      <span id="zoom-level" class="label-mono">100%</span>
-      <button id="btn-zoom-in" class="btn btn-secondary" aria-label="Zoom in">+</button>
-      <button id="btn-reset" class="btn btn-secondary">Fit</button>
-      <button id="btn-theme" class="btn btn-secondary" aria-label="Toggle theme">&#9684;</button>
+    <div class="toolbar-separator"></div>
+
+    <div class="toolbar-section">
+      <span class="toolbar-section-label">Zoom</span>
+      <div class="toolbar-group">
+        <button id="btn-zoom-out" class="btn btn-secondary" aria-label="Zoom out">&minus;</button>
+        <span id="zoom-level" class="label-mono">100%</span>
+        <button id="btn-zoom-in" class="btn btn-secondary" aria-label="Zoom in">+</button>
+        <button id="btn-reset" class="btn btn-secondary">Fit</button>
+      </div>
     </div>
+
+    <div class="toolbar-separator"></div>
+
+    <button id="btn-theme" class="btn btn-secondary" aria-label="Toggle theme">&#9684;</button>
   </header>
 
   <main id="viewport">
@@ -55,7 +73,17 @@
     <div id="pane-overlay" class="pane" hidden>
       <canvas id="canvas-overlay"></canvas>
       <div id="split-divider">
-        <div id="split-handle"></div>
+        <div id="split-line"></div>
+        <div id="split-handle">
+          <svg width="8" height="16" viewBox="0 0 8 16" fill="none">
+            <circle cx="2" cy="4" r="1.5" fill="currentColor"/>
+            <circle cx="6" cy="4" r="1.5" fill="currentColor"/>
+            <circle cx="2" cy="8" r="1.5" fill="currentColor"/>
+            <circle cx="6" cy="8" r="1.5" fill="currentColor"/>
+            <circle cx="2" cy="12" r="1.5" fill="currentColor"/>
+            <circle cx="6" cy="12" r="1.5" fill="currentColor"/>
+          </svg>
+        </div>
       </div>
     </div>
   </main>

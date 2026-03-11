@@ -13,10 +13,14 @@
     mode: 'normal',
     sync: false,
     diff: false,
-    theme: 'light',
+    theme: 'dark',
     splitX: 0.5,
     imageA: null,
     imageB: null,
+    fileNameA: null,
+    fileSizeA: null,
+    fileNameB: null,
+    fileSizeB: null,
     diffCache: null,
     dragging: null,
     dragStartX: 0,
@@ -70,6 +74,12 @@
   }
 
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
 
   function copyView(src, dst) {
     dst.scale = src.scale;
@@ -428,12 +438,12 @@
   // ── Status Bar ─────────────────────────
   function updateStatusBar() {
     if (G.imageA) {
-      $statusA.textContent = 'A: ' + G.imageA.width + '×' + G.imageA.height;
+      $statusA.textContent = G.fileNameA + ' · ' + formatSize(G.fileSizeA) + ' · ' + G.imageA.width + '×' + G.imageA.height;
     } else {
       $statusA.textContent = 'No image';
     }
     if (G.imageB) {
-      $statusB.textContent = 'B: ' + G.imageB.width + '×' + G.imageB.height;
+      $statusB.textContent = G.fileNameB + ' · ' + formatSize(G.fileSizeB) + ' · ' + G.imageB.width + '×' + G.imageB.height;
     } else {
       $statusB.textContent = 'No image';
     }
@@ -447,6 +457,13 @@
 
   // ── Image Loading ──────────────────────
   function loadImage(file, which) {
+    if (which === 'A') {
+      G.fileNameA = file.name;
+      G.fileSizeA = file.size;
+    } else {
+      G.fileNameB = file.name;
+      G.fileSizeB = file.size;
+    }
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = function () {

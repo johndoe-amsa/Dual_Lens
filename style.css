@@ -77,6 +77,29 @@ body {
   white-space: nowrap;
 }
 
+.toolbar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar-section-label {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 24px;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+}
+
 .toolbar-group {
   display: flex;
   align-items: center;
@@ -242,44 +265,51 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 2px;
-  background: var(--text-primary);
+  width: 32px;
   cursor: col-resize;
   z-index: 5;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-#split-handle {
+#split-line {
   position: absolute;
-  top: 50%;
+  top: 0;
+  bottom: 0;
   left: 50%;
-  transform: translate(-50%, -50%);
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--text-primary);
-  border: 2px solid var(--bg-primary);
+  width: 2px;
+  background: var(--border-subtle);
+  transform: translateX(-50%);
+  transition: background 0.15s ease;
   pointer-events: none;
 }
 
-#split-handle::before,
-#split-handle::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  width: 4px;
-  height: 10px;
-  border-radius: 1px;
-  background: var(--bg-primary);
-  transform: translateY(-50%);
+#split-divider:hover #split-line {
+  background: var(--text-primary);
 }
 
-#split-handle::before {
-  left: 4px;
+#split-handle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--elevation-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  pointer-events: none;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
 
-#split-handle::after {
-  right: 4px;
+#split-divider:hover #split-handle {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
 }
 
 /* --- Status Bar --- */
@@ -288,7 +318,8 @@ body {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 32px;
   padding: 0 24px;
   border-top: 1px solid var(--border-subtle);
   background: var(--elevation-bg);
