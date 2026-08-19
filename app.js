@@ -9,10 +9,39 @@
   const VA = { scale: 1, ox: 0, oy: 0 };  // pane A view (unsynced)
   const VB = { scale: 1, ox: 0, oy: 0 };  // pane B view (unsynced)
 
-  const slots = {
-    A: { img: null, src: null, name: null, size: 0 },
-    B: { img: null, src: null, name: null, size: 0 },
-  };
+  // A slot holds whatever is currently being compared. `img` is the drawable
+  // surface — an <img> for bitmaps, a <canvas> for the rasterised PDF page —
+  // so everything downstream (render, diff, inspector) stays format-agnostic.
+  function emptySlot() {
+    return {
+      img: null, src: null, name: null, size: 0,
+      kind: 'image',   // 'image' | 'pdf'
+      pdf: null,       // PDFDocumentProxy, when kind is 'pdf'
+      page: 1,         // 1-based page currently rasterised
+      pages: 1,        // total pages in the document
+      token: 0,        // guards against out-of-order async renders
+    };
+  }
+
+  const slots = { A: emptySlot(), B: emptySlot() };
+
+  // Monotonic across slots and clears, so a load that resolves late can never
+  // be mistaken for the current one.
+  let loadToken = 0;
+
+  // Async work follows the slot *object*: swapping A and B moves the object,
+  // so a file dropped on A still lands wherever A's content went.
+  function claimSlot(which) {
+    slots[which].token = ++loadToken;
+    return slots[which].token;
+  }
+
+  // Which pane a slot currently occupies, or null once it has been cleared.
+  function slotKey(slot) {
+    if (slots.A === slot) return 'A';
+    if (slots.B === slot) return 'B';
+    return null;
+  }
 
   const G = {
     mode: 'normal',        // 'normal' | 'split' | 'fade'
@@ -72,6 +101,10 @@
   const $ctxDiff     = $('ctx-diff');
   const $opacity     = $('opacity-slider');
   const $opacityVal  = $('opacity-value');
+  const $ctxPages    = $('ctx-pages');
+  const $pageNav     = { A: $('page-nav-a'), B: $('page-nav-b') };
+  const $pageInput   = { A: $('page-input-a'), B: $('page-input-b') };
+  const $pageTotal   = { A: $('page-total-a'), B: $('page-total-b') };
   const $threshold   = $('threshold-slider');
   const $thresholdVal= $('threshold-value');
   const $diffBusy    = $('diff-busy');
@@ -660,8 +693,11 @@
   // ── Status Bar ─────────────────────────
   function slotSummary(which) {
     const s = slots[which];
-    if (!s.img) return 'No image';
-    return s.name + ' · ' + formatSize(s.size) + ' · ' + s.img.width + '×' + s.img.height;
+    if (!s.img) return 'No file';
+    const parts = [s.name, formatSize(s.size)];
+    if (s.kind === 'pdf') parts.push('page ' + s.page + ' / ' + s.pages);
+    parts.push(s.img.width + '×' + s.img.height);
+    return parts.join(' · ');
   }
 
   function updateStatusBar() {
@@ -718,9 +754,27 @@
     $legendA.textContent = slots.A.img ? 'A · ' + slots.A.name : 'A';
     $legendB.textContent = slots.B.img ? 'B · ' + slots.B.name : 'B';
 
+    ['A', 'B'].forEach((which) => {
+      const slot = slots[which];
+      const isPdf = slot.kind === 'pdf' && !!slot.pdf && slot.pages > 1;
+      $pageNav[which].hidden = !isPdf;
+      if (!isPdf) return;
+      $pageInput[which].max = slot.pages;
+      // Leave the field alone while it is being typed into.
+      if (document.activeElement !== $pageInput[which]) {
+        $pageInput[which].value = slot.page;
+      }
+      $pageTotal[which].textContent = '/ ' + slot.pages;
+      $pageNav[which].querySelectorAll('[data-page-step]').forEach((btn) => {
+        const step = parseInt(btn.dataset.pageStep, 10);
+        btn.disabled = step < 0 ? slot.page <= 1 : slot.page >= slot.pages;
+      });
+    });
+
     $ctxFade.hidden = G.mode !== 'fade';
+    $ctxPages.hidden = $pageNav.A.hidden && $pageNav.B.hidden;
     $ctxDiff.hidden = !G.diff;
-    $contextBar.hidden = $ctxFade.hidden && $ctxDiff.hidden;
+    $contextBar.hidden = $ctxFade.hidden && $ctxPages.hidden && $ctxDiff.hidden;
 
     $opacity.value = G.opacity;
     $opacityVal.textContent = G.opacity + '%';
@@ -730,38 +784,252 @@
     savePrefs();
   }
 
-  // ── Image Loading ──────────────────────
-  // `announce` is false to stay silent, or a verb ("Pasted into") to override
-  // the default loaded/replaced wording.
-  function loadImage(file, which, announce) {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
+  // ── PDF Rasterisation ──────────────────
+  // PDFs are compared page by page: the page is rasterised to a canvas, and
+  // from there it is just another image to the rest of the app.
+  // The pdf.js build lives in vendor/pdfjs (see its README for the version).
 
-    img.onload = function () {
-      const wasEmpty = !slots[which].img;
-      slots[which].img = img;
-      slots[which].name = file.name || 'clipboard';
-      slots[which].size = file.size || 0;
-      slots[which].src = makeSourceCanvas(img);
-      URL.revokeObjectURL(url);
+  // Resolve vendor assets against this script rather than the document so the
+  // app keeps working when it is served from a sub-path.
+  const VENDOR_BASE = new URL(
+    'vendor/pdfjs/',
+    (document.currentScript && document.currentScript.src) || document.baseURI
+  ).href;
 
-      if (wasEmpty) fitSlot(which);
+  // 2× the PDF's own 72 dpi user space. Crisp enough to diff body text without
+  // turning a long document into hundreds of megabytes of canvas.
+  const PDF_SCALE = 2;
+  const PDF_MAX_DIM = 8192;      // stay inside browser canvas limits
+  const PDF_MAX_PIXELS = 16e6;   // and inside sane memory use
+
+  let pdfLib = null;
+
+  function isPdfFile(file) {
+    return file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+  }
+
+  function loadPdfLib() {
+    if (!pdfLib) {
+      pdfLib = import(VENDOR_BASE + 'pdf.min.mjs').then((lib) => {
+        lib.GlobalWorkerOptions.workerSrc = VENDOR_BASE + 'pdf.worker.min.mjs';
+        return lib;
+      }).catch((err) => {
+        pdfLib = null;   // let the next PDF retry a failed download
+        err.engineFailure = true;
+        throw err;
+      });
+    }
+    return pdfLib;
+  }
+
+  function openPdfDocument(lib, data) {
+    return lib.getDocument({
+      data: data,
+      cMapUrl: VENDOR_BASE + 'cmaps/',
+      cMapPacked: true,
+      standardFontDataUrl: VENDOR_BASE + 'standard_fonts/',
+      iccUrl: VENDOR_BASE + 'iccs/',
+      wasmUrl: VENDOR_BASE + 'wasm/',
+      isEvalSupported: false,   // never run scripts embedded in a PDF
+    }).promise;
+  }
+
+  // Render one page onto a fresh canvas at the highest resolution the caps allow.
+  function renderPdfPage(doc, pageNumber) {
+    return doc.getPage(pageNumber).then((page) => {
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(
+        PDF_SCALE,
+        PDF_MAX_DIM / base.width,
+        PDF_MAX_DIM / base.height,
+        Math.sqrt(PDF_MAX_PIXELS / (base.width * base.height))
+      );
+      const viewport = page.getViewport({ scale: scale });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(viewport.width));
+      canvas.height = Math.max(1, Math.round(viewport.height));
+
+      // Pages are transparent outside their painted content; a white sheet
+      // matches every PDF viewer and keeps the diff honest.
+      return page.render({
+        canvas: canvas,
+        viewport: viewport,
+        background: '#FFFFFF',
+      }).promise.then(() => {
+        page.cleanup();
+        return canvas;
+      });
+    });
+  }
+
+  // A document is torn down through its loading task, which owns the worker.
+  function destroyDocument(doc) {
+    if (!doc || !doc.loadingTask) return;
+    Promise.resolve(doc.loadingTask.destroy())
+      .catch(() => { /* already gone, or a render was cancelled with it */ });
+  }
+
+  function pdfErrorMessage(err, name) {
+    if (err && err.engineFailure) return 'Could not load the PDF engine';
+    const kind = err && err.name;
+    if (kind === 'PasswordException') return name + ' is password-protected';
+    if (kind === 'InvalidPDFException') return name + ' is not a readable PDF';
+    if (kind === 'MissingPDFException') return 'Could not read ' + name;
+    return 'Could not render ' + name;
+  }
+
+  function loadPdf(file, which, announce) {
+    const name = file.name || 'document.pdf';
+    const slot = slots[which];
+    const token = claimSlot(which);
+    const stale = () => slot.token !== token || !slotKey(slot);
+
+    showToast('Opening ' + name + '…');
+
+    return file.arrayBuffer()
+      .then((buf) => loadPdfLib().then((lib) => openPdfDocument(lib, buf)))
+      .then((doc) => {
+        if (stale()) { destroyDocument(doc); return false; }
+        return renderPdfPage(doc, 1).then((canvas) => {
+          if (stale()) { destroyDocument(doc); return false; }
+          const wasEmpty = !slot.img;
+          releaseDocument(slot);
+          slot.kind = 'pdf';
+          slot.pdf = doc;
+          slot.page = 1;
+          slot.pages = doc.numPages;
+          slot.name = name;
+          slot.size = file.size || 0;
+          slot.img = canvas;
+          slot.src = makeSourceCanvas(canvas);
+          adoptLoaded(slot, wasEmpty, announce);
+          return true;
+        });
+      })
+      .catch((err) => {
+        if (!stale()) showToast(pdfErrorMessage(err, name), true);
+        return false;
+      });
+  }
+
+  // Re-rasterise the slot's document at a different page.
+  function setPdfPage(which, pageNumber) {
+    const slot = slots[which];
+    if (slot.kind !== 'pdf' || !slot.pdf) return;
+
+    const target = clamp(Math.round(pageNumber), 1, slot.pages);
+    if (target === slot.page) return;
+
+    const doc = slot.pdf;
+    const token = claimSlot(which);
+    const stale = () => slot.pdf !== doc || slot.token !== token || !slotKey(slot);
+
+    slot.page = target;
+    syncUI();
+
+    renderPdfPage(doc, target).then((canvas) => {
+      if (stale()) return;
+      slot.img = canvas;
+      slot.src = makeSourceCanvas(canvas);
       invalidateDiff();
       syncUI();
       scheduleRender();
-      if (announce !== false) {
-        showToast(typeof announce === 'string'
-          ? announce + ' ' + which
-          : (wasEmpty ? 'Loaded into ' + which : 'Replaced ' + which));
-      }
-    };
+    }).catch(() => {
+      if (stale()) return;
+      showToast('Could not render page ' + target, true);
+    });
+  }
 
-    img.onerror = function () {
-      URL.revokeObjectURL(url);
-      showToast('Could not read ' + (file.name || 'that file'), true);
-    };
+  // Page through every open document at once — the usual case is two revisions
+  // of the same file, and each slot clamps to its own length.
+  function stepPages(delta) {
+    const pdfSlots = ['A', 'B'].filter((w) => slots[w].kind === 'pdf' && slots[w].pages > 1);
+    if (!pdfSlots.length) return;
 
-    img.src = url;
+    const moved = pdfSlots.filter((w) => {
+      const next = clamp(slots[w].page + delta, 1, slots[w].pages);
+      if (next === slots[w].page) return false;
+      setPdfPage(w, next);
+      return true;
+    });
+
+    if (!moved.length) {
+      showToast(delta > 0 ? 'Last page' : 'First page');
+    } else if (moved.length === 1) {
+      showToast(moved[0] + ' · page ' + slots[moved[0]].page + ' / ' + slots[moved[0]].pages);
+    } else {
+      showToast('Page ' + slots.A.page + ' · ' + slots.B.page);
+    }
+  }
+
+  // ── File Loading ───────────────────────
+  // Let go of any PDF the slot was holding, so a replaced document frees its
+  // worker instead of parsing on in the background.
+  function releaseDocument(slot) {
+    const doc = slot.pdf;
+    slot.pdf = null;
+    destroyDocument(doc);
+  }
+
+  // Shared tail of every successful load: frame it, refresh, and say so.
+  // `announce` is false to stay silent, or a verb ("Pasted into") to override
+  // the default loaded/replaced wording.
+  function adoptLoaded(slot, wasEmpty, announce) {
+    const which = slotKey(slot);
+    if (!which) return;
+    if (wasEmpty) fitSlot(which);
+    invalidateDiff();
+    syncUI();
+    scheduleRender();
+    if (announce !== false) {
+      showToast(typeof announce === 'string'
+        ? announce + ' ' + which
+        : (wasEmpty ? 'Loaded into ' + which : 'Replaced ' + which));
+    }
+  }
+
+  function loadImage(file, which, announce) {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    const slot = slots[which];
+    const token = claimSlot(which);
+    const stale = () => slot.token !== token || !slotKey(slot);
+
+    return new Promise((resolve) => {
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        if (stale()) { resolve(false); return; }
+
+        const wasEmpty = !slot.img;
+        releaseDocument(slot);
+        slot.kind = 'image';
+        slot.page = 1;
+        slot.pages = 1;
+        slot.img = img;
+        slot.name = file.name || 'clipboard';
+        slot.size = file.size || 0;
+        slot.src = makeSourceCanvas(img);
+        adoptLoaded(slot, wasEmpty, announce);
+        resolve(true);
+      };
+
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        if (!stale()) showToast('Could not read ' + (file.name || 'that file'), true);
+        resolve(false);
+      };
+
+      img.src = url;
+    });
+  }
+
+  // Resolves true once the file is on screen, false if it failed or was
+  // superseded — every loader reports the same way.
+  function loadFile(file, which, announce) {
+    return isPdfFile(file)
+      ? loadPdf(file, which, announce)
+      : loadImage(file, which, announce);
   }
 
   function pickTarget() {
@@ -770,29 +1038,39 @@
     return G.hoverSlot || 'A';
   }
 
+  function isSupportedFile(file) {
+    if (!file) return false;
+    if (isPdfFile(file)) return true;
+    return !!file.type && file.type.indexOf('image/') === 0;
+  }
+
   function handleFiles(fileList, which, verb) {
-    const files = Array.prototype.slice.call(fileList || [])
-      .filter((f) => f && f.type && f.type.indexOf('image/') === 0);
+    const files = Array.prototype.slice.call(fileList || []).filter(isSupportedFile);
 
     if (!files.length) {
-      showToast('That file is not an image', true);
+      showToast('That file is not an image or PDF', true);
       return;
     }
 
     if (files.length >= 2) {
       const first = which || 'A';
       const second = first === 'A' ? 'B' : 'A';
-      loadImage(files[0], first, false);
-      loadImage(files[1], second, false);
-      showToast('Loaded 2 images');
+      // PDFs land asynchronously, so wait before claiming both are in.
+      Promise.all([
+        loadFile(files[0], first, false),
+        loadFile(files[1], second, false),
+      ]).then((results) => {
+        if (results[0] && results[1]) showToast('Loaded 2 files');
+      });
       return;
     }
 
-    loadImage(files[0], which || pickTarget(), verb);
+    loadFile(files[0], which || pickTarget(), verb);
   }
 
   function clearSlot(which) {
-    slots[which] = { img: null, src: null, name: null, size: 0 };
+    releaseDocument(slots[which]);
+    slots[which] = emptySlot();
     if (!bothLoaded() && G.diff) {
       G.diff = false;
       G.diffCache = null;
@@ -848,10 +1126,9 @@
     if (!items) return;
     const files = [];
     for (let i = 0; i < items.length; i++) {
-      if (items[i].kind === 'file' && items[i].type.indexOf('image/') === 0) {
-        const f = items[i].getAsFile();
-        if (f) files.push(f);
-      }
+      if (items[i].kind !== 'file') continue;
+      const f = items[i].getAsFile();
+      if (isSupportedFile(f)) files.push(f);
     }
     if (!files.length) return;
     e.preventDefault();
@@ -1207,6 +1484,28 @@
   });
   $opacity.addEventListener('change', savePrefs);
 
+  document.querySelectorAll('[data-page-step]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const which = btn.dataset.slot;
+      setPdfPage(which, slots[which].page + parseInt(btn.dataset.pageStep, 10));
+    });
+  });
+
+  ['A', 'B'].forEach((which) => {
+    const input = $pageInput[which];
+    const commit = () => {
+      const value = parseInt(input.value, 10);
+      if (isNaN(value)) input.value = slots[which].page;
+      else setPdfPage(which, value);
+      input.value = slots[which].page;
+    };
+    input.addEventListener('change', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); input.blur(); }
+      else if (e.key === 'Escape') { input.value = slots[which].page; input.blur(); }
+    });
+  });
+
   $threshold.addEventListener('input', () => {
     G.threshold = parseInt($threshold.value, 10);
     $thresholdVal.textContent = G.threshold;
@@ -1250,6 +1549,8 @@
       case '+': case '=': e.preventDefault(); zoomCenter(1.2); break;
       case '-': case '_': e.preventDefault(); zoomCenter(0.8); break;
       case '?': e.preventDefault(); toggleHelp(); break;
+      case '[': e.preventDefault(); stepPages(-1); break;
+      case ']': e.preventDefault(); stepPages(1); break;
       case 'ArrowLeft':
         if (G.mode === 'split') { e.preventDefault(); setSplit(G.splitX - (e.shiftKey ? 0.1 : 0.01)); savePrefs(); }
         break;

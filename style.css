@@ -277,6 +277,61 @@ kbd {
 .ctx-busy { color: var(--color-warning); }
 .ctx-busy[hidden] { display: none; }
 
+/* --- Page Navigation (PDF) --- */
+.page-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-nav[hidden] { display: none; }
+
+/* Keep the two slots from reading as one long control. */
+.page-nav + .page-nav { margin-left: 8px; }
+
+.page-slot {
+  min-width: 8px;
+  color: var(--text-primary);
+}
+
+.page-step.btn-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+}
+
+.page-input {
+  width: 48px;
+  height: 24px;
+  padding: 0 4px;
+  text-align: center;
+  font-family: 'Geist Mono', Menlo, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s ease;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.page-input::-webkit-outer-spin-button,
+.page-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.page-input:focus {
+  border-color: var(--border-strong);
+}
+
+.page-total {
+  min-width: 32px;
+}
+
 /* --- Range --- */
 .range {
   -webkit-appearance: none;

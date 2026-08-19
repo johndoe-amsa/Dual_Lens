@@ -53,10 +53,10 @@
       <div class="toolbar-separator"></div>
 
       <div class="toolbar-section">
-        <span class="toolbar-section-label">Images</span>
+        <span class="toolbar-section-label">Files</span>
         <div class="toolbar-group">
-          <button id="btn-open-a" class="btn btn-secondary" title="Open image A">Open A</button>
-          <button id="btn-open-b" class="btn btn-secondary" title="Open image B">Open B</button>
+          <button id="btn-open-a" class="btn btn-secondary" title="Open an image or PDF as A">Open A</button>
+          <button id="btn-open-b" class="btn btn-secondary" title="Open an image or PDF as B">Open B</button>
           <button id="btn-swap" class="btn btn-secondary" title="Swap A and B — X">Swap</button>
         </div>
       </div>
@@ -90,6 +90,32 @@
       <span class="label-mono ctx-value" id="opacity-value">50%</span>
     </div>
 
+    <div class="ctx-group" id="ctx-pages" hidden>
+      <span class="toolbar-section-label">Pages</span>
+
+      <div class="page-nav" id="page-nav-a" hidden>
+        <span class="label-mono page-slot">A</span>
+        <button class="btn btn-secondary btn-icon page-step" data-page-step="-1" data-slot="A"
+                aria-label="Previous page of A" title="Previous page of A">&lsaquo;</button>
+        <input type="number" class="page-input label-mono" id="page-input-a" min="1" value="1"
+               aria-label="Page number of A">
+        <span class="label-mono page-total" id="page-total-a">/ 1</span>
+        <button class="btn btn-secondary btn-icon page-step" data-page-step="1" data-slot="A"
+                aria-label="Next page of A" title="Next page of A">&rsaquo;</button>
+      </div>
+
+      <div class="page-nav" id="page-nav-b" hidden>
+        <span class="label-mono page-slot">B</span>
+        <button class="btn btn-secondary btn-icon page-step" data-page-step="-1" data-slot="B"
+                aria-label="Previous page of B" title="Previous page of B">&lsaquo;</button>
+        <input type="number" class="page-input label-mono" id="page-input-b" min="1" value="1"
+               aria-label="Page number of B">
+        <span class="label-mono page-total" id="page-total-b">/ 1</span>
+        <button class="btn btn-secondary btn-icon page-step" data-page-step="1" data-slot="B"
+                aria-label="Next page of B" title="Next page of B">&rsaquo;</button>
+      </div>
+    </div>
+
     <div class="ctx-group" id="ctx-diff" hidden>
       <span class="toolbar-section-label">Diff threshold</span>
       <input type="range" id="threshold-slider" class="range" min="0" max="64" value="5"
@@ -105,13 +131,13 @@
       <div class="pane-chrome">
         <span class="pane-badge">A</span>
         <div class="pane-actions">
-          <button class="pane-btn" data-act="open" data-slot="A" title="Replace image A">Replace</button>
-          <button class="pane-btn" data-act="clear" data-slot="A" title="Remove image A">Clear</button>
+          <button class="pane-btn" data-act="open" data-slot="A" title="Replace A">Replace</button>
+          <button class="pane-btn" data-act="clear" data-slot="A" title="Remove A">Clear</button>
         </div>
       </div>
       <div class="drop-zone" id="drop-a">
-        <span class="drop-label">Image A</span>
-        <p class="drop-text">Drop an image, click to browse</p>
+        <span class="drop-label">Source A</span>
+        <p class="drop-text">Drop an image or PDF, click to browse</p>
         <p class="drop-hint label-mono">or paste with <kbd>Ctrl</kbd><kbd>V</kbd></p>
       </div>
     </div>
@@ -121,13 +147,13 @@
       <div class="pane-chrome">
         <span class="pane-badge">B</span>
         <div class="pane-actions">
-          <button class="pane-btn" data-act="open" data-slot="B" title="Replace image B">Replace</button>
-          <button class="pane-btn" data-act="clear" data-slot="B" title="Remove image B">Clear</button>
+          <button class="pane-btn" data-act="open" data-slot="B" title="Replace B">Replace</button>
+          <button class="pane-btn" data-act="clear" data-slot="B" title="Remove B">Clear</button>
         </div>
       </div>
       <div class="drop-zone" id="drop-b">
-        <span class="drop-label">Image B</span>
-        <p class="drop-text">Drop an image, click to browse</p>
+        <span class="drop-label">Source B</span>
+        <p class="drop-text">Drop an image or PDF, click to browse</p>
         <p class="drop-hint label-mono">or paste with <kbd>Ctrl</kbd><kbd>V</kbd></p>
       </div>
     </div>
@@ -153,7 +179,7 @@
         </div>
       </div>
       <div class="overlay-empty" id="overlay-empty" hidden>
-        <p class="drop-text">Drop images anywhere, or use <strong>Open A</strong> / <strong>Open B</strong></p>
+        <p class="drop-text">Drop images or PDFs anywhere, or use <strong>Open A</strong> / <strong>Open B</strong></p>
       </div>
     </div>
   </main>
@@ -177,11 +203,11 @@
   <div id="drag-overlay" hidden>
     <div class="drag-target" data-slot="A">
       <span class="drag-target-badge">A</span>
-      <span class="drag-target-text">Drop here for image A</span>
+      <span class="drag-target-text">Drop here for A</span>
     </div>
     <div class="drag-target" data-slot="B">
       <span class="drag-target-badge">B</span>
-      <span class="drag-target-text">Drop here for image B</span>
+      <span class="drag-target-text">Drop here for B</span>
     </div>
   </div>
 
@@ -235,10 +261,11 @@
         </section>
 
         <section class="help-section">
-          <h3 class="toolbar-section-label">Images</h3>
+          <h3 class="toolbar-section-label">Files</h3>
           <dl class="help-list">
+            <dt>Previous / next PDF page</dt><dd><kbd>[</kbd><kbd>]</kbd></dd>
             <dt>Paste from clipboard</dt><dd><kbd>Ctrl</kbd><kbd>V</kbd></dd>
-            <dt>Load images</dt><dd><span class="help-note">Drop anywhere</span></dd>
+            <dt>Load images or PDFs</dt><dd><span class="help-note">Drop anywhere</span></dd>
             <dt>Toggle theme</dt><dd><kbd>T</kbd></dd>
             <dt>This panel</dt><dd><kbd>?</kbd></dd>
           </dl>
@@ -249,8 +276,8 @@
 
   <div id="toast" hidden></div>
 
-  <input type="file" accept="image/*" id="file-a" multiple hidden>
-  <input type="file" accept="image/*" id="file-b" multiple hidden>
+  <input type="file" accept="image/*,application/pdf,.pdf" id="file-a" multiple hidden>
+  <input type="file" accept="image/*,application/pdf,.pdf" id="file-b" multiple hidden>
 
   <script src="app.js"></script>
 </body>
