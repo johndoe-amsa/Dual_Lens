@@ -2,80 +2,147 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Dual Lens</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Resolve the theme before first paint so reloading never flashes the wrong one.
+    (function () {
+      var theme;
+      try { theme = (JSON.parse(localStorage.getItem('dual-lens:prefs')) || {}).theme; }
+      catch (e) { /* storage unavailable */ }
+      if (theme !== 'light' && theme !== 'dark') {
+        theme = window.matchMedia &&
+                window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
 </head>
 <body>
 
   <header id="toolbar">
     <h1 class="app-title">Dual Lens</h1>
 
-    <div class="toolbar-separator"></div>
+    <div class="toolbar-rail">
+      <div class="toolbar-separator"></div>
 
-    <div class="toolbar-section">
-      <span class="toolbar-section-label">View</span>
-      <div class="toolbar-group">
-        <button id="btn-normal" class="btn btn-primary" aria-pressed="true">Normal</button>
-        <button id="btn-split" class="btn btn-secondary" aria-pressed="false">Split</button>
+      <div class="toolbar-section">
+        <span class="toolbar-section-label">View</span>
+        <div class="toolbar-group">
+          <button id="btn-normal" class="btn btn-secondary" data-mode="normal" aria-pressed="true" title="Side by side — 1">Normal</button>
+          <button id="btn-split" class="btn btn-secondary" data-mode="split" aria-pressed="false" title="Split with draggable divider — 2">Split</button>
+          <button id="btn-fade" class="btn btn-secondary" data-mode="fade" aria-pressed="false" title="Onion skin fade between A and B — 3">Fade</button>
+        </div>
+      </div>
+
+      <div class="toolbar-separator"></div>
+
+      <div class="toolbar-section">
+        <span class="toolbar-section-label">Tools</span>
+        <div class="toolbar-group">
+          <button id="btn-sync" class="btn btn-secondary" aria-pressed="false" title="Lock zoom and pan together — Y">Sync</button>
+          <button id="btn-diff" class="btn btn-secondary" aria-pressed="false" title="Highlight differing pixels — D">Diff</button>
+          <button id="btn-inspect" class="btn btn-secondary" aria-pressed="false" title="Read pixel values under the cursor — I">Inspect</button>
+        </div>
+      </div>
+
+      <div class="toolbar-separator"></div>
+
+      <div class="toolbar-section">
+        <span class="toolbar-section-label">Images</span>
+        <div class="toolbar-group">
+          <button id="btn-open-a" class="btn btn-secondary" title="Open image A">Open A</button>
+          <button id="btn-open-b" class="btn btn-secondary" title="Open image B">Open B</button>
+          <button id="btn-swap" class="btn btn-secondary" title="Swap A and B — X">Swap</button>
+        </div>
+      </div>
+
+      <div class="toolbar-separator"></div>
+
+      <div class="toolbar-section">
+        <span class="toolbar-section-label">Zoom</span>
+        <div class="toolbar-group">
+          <button id="btn-zoom-out" class="btn btn-secondary btn-icon" aria-label="Zoom out" title="Zoom out — −">&minus;</button>
+          <button id="btn-zoom-level" class="btn btn-ghost label-mono" aria-haspopup="menu" aria-expanded="false" title="Pick a zoom level">100%</button>
+          <button id="btn-zoom-in" class="btn btn-secondary btn-icon" aria-label="Zoom in" title="Zoom in — +">+</button>
+          <button id="btn-reset" class="btn btn-secondary" title="Fit image to view — F">Fit</button>
+        </div>
       </div>
     </div>
 
-    <div class="toolbar-separator"></div>
-
-    <div class="toolbar-section">
-      <span class="toolbar-section-label">Tools</span>
-      <div class="toolbar-group">
-        <button id="btn-sync" class="btn btn-secondary" aria-pressed="false">Sync</button>
-        <button id="btn-diff" class="btn btn-secondary" aria-pressed="false">Diff</button>
-      </div>
+    <div class="toolbar-end">
+      <button id="btn-help" class="btn btn-secondary btn-icon" aria-label="Keyboard shortcuts" title="Keyboard shortcuts — ?">?</button>
+      <button id="btn-theme" class="btn btn-secondary btn-icon" aria-label="Toggle theme" title="Toggle light / dark — T">&#9684;</button>
     </div>
-
-    <div class="toolbar-separator"></div>
-
-    <div class="toolbar-section">
-      <span class="toolbar-section-label">Zoom</span>
-      <div class="toolbar-group">
-        <button id="btn-zoom-out" class="btn btn-secondary" aria-label="Zoom out">&minus;</button>
-        <span id="zoom-level" class="label-mono">100%</span>
-        <button id="btn-zoom-in" class="btn btn-secondary" aria-label="Zoom in">+</button>
-        <button id="btn-reset" class="btn btn-secondary">Fit</button>
-      </div>
-    </div>
-
-    <div class="toolbar-separator"></div>
-
-    <button id="btn-theme" class="btn btn-secondary" aria-label="Toggle theme">&#9684;</button>
   </header>
 
+  <div id="context-bar" hidden>
+    <div class="ctx-group" id="ctx-fade" hidden>
+      <span class="toolbar-section-label">Fade</span>
+      <span class="label-mono">A</span>
+      <input type="range" id="opacity-slider" class="range" min="0" max="100" value="50"
+             aria-label="Fade between image A and image B">
+      <span class="label-mono">B</span>
+      <span class="label-mono ctx-value" id="opacity-value">50%</span>
+    </div>
+
+    <div class="ctx-group" id="ctx-diff" hidden>
+      <span class="toolbar-section-label">Diff threshold</span>
+      <input type="range" id="threshold-slider" class="range" min="0" max="64" value="5"
+             aria-label="Diff sensitivity threshold">
+      <span class="label-mono ctx-value" id="threshold-value">5</span>
+      <span class="label-mono ctx-busy" id="diff-busy" hidden>Computing…</span>
+    </div>
+  </div>
+
   <main id="viewport">
-    <div id="pane-a" class="pane">
+    <div id="pane-a" class="pane" data-pane="A">
       <canvas id="canvas-a"></canvas>
+      <div class="pane-chrome">
+        <span class="pane-badge">A</span>
+        <div class="pane-actions">
+          <button class="pane-btn" data-act="open" data-slot="A" title="Replace image A">Replace</button>
+          <button class="pane-btn" data-act="clear" data-slot="A" title="Remove image A">Clear</button>
+        </div>
+      </div>
       <div class="drop-zone" id="drop-a">
-        <span class="drop-label">IMAGE A</span>
-        <p class="drop-text">Drop image or click to browse</p>
-        <input type="file" accept="image/*" id="file-a" hidden>
+        <span class="drop-label">Image A</span>
+        <p class="drop-text">Drop an image, click to browse</p>
+        <p class="drop-hint label-mono">or paste with <kbd>Ctrl</kbd><kbd>V</kbd></p>
       </div>
     </div>
 
-    <div id="pane-b" class="pane">
+    <div id="pane-b" class="pane" data-pane="B">
       <canvas id="canvas-b"></canvas>
+      <div class="pane-chrome">
+        <span class="pane-badge">B</span>
+        <div class="pane-actions">
+          <button class="pane-btn" data-act="open" data-slot="B" title="Replace image B">Replace</button>
+          <button class="pane-btn" data-act="clear" data-slot="B" title="Remove image B">Clear</button>
+        </div>
+      </div>
       <div class="drop-zone" id="drop-b">
-        <span class="drop-label">IMAGE B</span>
-        <p class="drop-text">Drop image or click to browse</p>
-        <input type="file" accept="image/*" id="file-b" hidden>
+        <span class="drop-label">Image B</span>
+        <p class="drop-text">Drop an image, click to browse</p>
+        <p class="drop-hint label-mono">or paste with <kbd>Ctrl</kbd><kbd>V</kbd></p>
       </div>
     </div>
 
     <div id="pane-overlay" class="pane" hidden>
       <canvas id="canvas-overlay"></canvas>
-      <div id="split-divider">
+      <div class="overlay-legend">
+        <span class="pane-badge" id="legend-a">A</span>
+        <span class="pane-badge" id="legend-b">B</span>
+      </div>
+      <div id="split-divider" role="separator" aria-orientation="vertical" aria-label="Split position"
+           tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
         <div id="split-line"></div>
         <div id="split-handle">
-          <svg width="8" height="16" viewBox="0 0 8 16" fill="none">
+          <svg width="8" height="16" viewBox="0 0 8 16" fill="none" aria-hidden="true">
             <circle cx="2" cy="4" r="1.5" fill="currentColor"/>
             <circle cx="6" cy="4" r="1.5" fill="currentColor"/>
             <circle cx="2" cy="8" r="1.5" fill="currentColor"/>
@@ -85,16 +152,105 @@
           </svg>
         </div>
       </div>
+      <div class="overlay-empty" id="overlay-empty" hidden>
+        <p class="drop-text">Drop images anywhere, or use <strong>Open A</strong> / <strong>Open B</strong></p>
+      </div>
     </div>
   </main>
 
   <footer id="status-bar">
-    <span id="status-a" class="label-mono">No image</span>
-    <span id="status-diff" class="label-mono" hidden>Diff: 0.00%</span>
-    <span id="status-b" class="label-mono">No image</span>
+    <span id="status-a" class="label-mono status-slot">No image</span>
+
+    <div id="status-center">
+      <span id="status-diff" class="label-mono" hidden>Diff 0.00%</span>
+      <div id="pixel-readout" hidden>
+        <span class="label-mono" id="px-coord">0, 0</span>
+        <span class="px-chip"><i class="px-swatch" id="px-sw-a"></i><span class="label-mono" id="px-a">—</span></span>
+        <span class="px-chip"><i class="px-swatch" id="px-sw-b"></i><span class="label-mono" id="px-b">—</span></span>
+        <span class="label-mono px-delta" id="px-delta"></span>
+      </div>
+    </div>
+
+    <span id="status-b" class="label-mono status-slot status-right">No image</span>
   </footer>
 
+  <div id="drag-overlay" hidden>
+    <div class="drag-target" data-slot="A">
+      <span class="drag-target-badge">A</span>
+      <span class="drag-target-text">Drop here for image A</span>
+    </div>
+    <div class="drag-target" data-slot="B">
+      <span class="drag-target-badge">B</span>
+      <span class="drag-target-text">Drop here for image B</span>
+    </div>
+  </div>
+
+  <div id="zoom-menu" class="menu" role="menu" hidden>
+    <button class="menu-item" role="menuitem" data-zoom="fit">Fit to view<span class="menu-key label-mono">F</span></button>
+    <div class="menu-divider"></div>
+    <button class="menu-item" role="menuitem" data-zoom="0.25">25%</button>
+    <button class="menu-item" role="menuitem" data-zoom="0.5">50%</button>
+    <button class="menu-item" role="menuitem" data-zoom="1">100%<span class="menu-key label-mono">0</span></button>
+    <button class="menu-item" role="menuitem" data-zoom="2">200%</button>
+    <button class="menu-item" role="menuitem" data-zoom="4">400%</button>
+    <button class="menu-item" role="menuitem" data-zoom="8">800%</button>
+  </div>
+
+  <div id="help-overlay" hidden>
+    <div id="help-panel" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div class="help-header">
+        <h2 id="help-title" class="help-title">Keyboard shortcuts</h2>
+        <button id="btn-help-close" class="btn btn-secondary btn-icon" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="help-body">
+        <section class="help-section">
+          <h3 class="toolbar-section-label">View</h3>
+          <dl class="help-list">
+            <dt>Normal / Split / Fade</dt><dd><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></dd>
+            <dt>Cycle view modes</dt><dd><kbd>S</kbd></dd>
+            <dt>Sync zoom &amp; pan</dt><dd><kbd>Y</kbd></dd>
+            <dt>Move split divider</dt><dd><kbd>&larr;</kbd><kbd>&rarr;</kbd></dd>
+          </dl>
+        </section>
+
+        <section class="help-section">
+          <h3 class="toolbar-section-label">Compare</h3>
+          <dl class="help-list">
+            <dt>Toggle diff overlay</dt><dd><kbd>D</kbd></dd>
+            <dt>Pixel inspector</dt><dd><kbd>I</kbd></dd>
+            <dt>Swap A and B</dt><dd><kbd>X</kbd></dd>
+          </dl>
+        </section>
+
+        <section class="help-section">
+          <h3 class="toolbar-section-label">Navigate</h3>
+          <dl class="help-list">
+            <dt>Zoom in / out</dt><dd><kbd>+</kbd><kbd>&minus;</kbd></dd>
+            <dt>Fit to view</dt><dd><kbd>F</kbd></dd>
+            <dt>Actual size (100%)</dt><dd><kbd>0</kbd></dd>
+            <dt>Toggle fit / 100%</dt><dd><span class="help-note">Double-click</span></dd>
+            <dt>Zoom at cursor</dt><dd><span class="help-note">Scroll · pinch</span></dd>
+          </dl>
+        </section>
+
+        <section class="help-section">
+          <h3 class="toolbar-section-label">Images</h3>
+          <dl class="help-list">
+            <dt>Paste from clipboard</dt><dd><kbd>Ctrl</kbd><kbd>V</kbd></dd>
+            <dt>Load images</dt><dd><span class="help-note">Drop anywhere</span></dd>
+            <dt>Toggle theme</dt><dd><kbd>T</kbd></dd>
+            <dt>This panel</dt><dd><kbd>?</kbd></dd>
+          </dl>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" hidden></div>
+
+  <input type="file" accept="image/*" id="file-a" multiple hidden>
+  <input type="file" accept="image/*" id="file-b" multiple hidden>
 
   <script src="app.js"></script>
 </body>
